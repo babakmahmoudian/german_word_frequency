@@ -1,23 +1,28 @@
 """This module contains the main script for the project.
-   It reads individual data files, creates a the consolidated raw dataset,
-   and performs the cleaning and preprocessing steps. Afterwards, generates
-   the word-frequency dictionary and saves it to a file.
+It reads individual data files, creates a the consolidated raw dataset, and performs the cleaning and preprocessing
+steps. Afterwards, generates the word-frequency dictionary and saves it to a file.
 """
 
 import os
+import logging
 import spacy
 import pandas as pd
-from tqdm import tqdm
-from configs import (INPUT_PATH,
-                     SEPARATOR,
-                     WORD_COL_INDEX,
-                     FREQUENCY_COL_INDEX,
-                     OUTPUT_FILE,
-                     LEMMA_COL_TITLE,
-                     FREQUENCY_COL_TITLE,
-                     LEMMA_BATCH_SIZE,
-                     SPACY_MODEL,
-                     INPUT_PREFIX)
+from configs import (
+    LEMMA_BATCH_SIZE,
+    SPACY_MODEL,
+    INPUT_PATH,
+    WORD_COL_INDEX,
+    FREQUENCY_COL_INDEX,
+    SEPARATOR,
+    INPUT_PREFIX,
+    WORD_COL_TITLE,
+    FREQUENCY_COL_TITLE,
+    LEMMA_COL_TITLE,
+    RANK_COL_TITLE,
+    OUTPUT_FILE,
+)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def get_data() -> pd.DataFrame:
@@ -25,19 +30,23 @@ def get_data() -> pd.DataFrame:
 
     df = pd.DataFrame()
 
-    input_files = [f"{INPUT_PATH}/{filename}"
-                   for filename in os.listdir(INPUT_PATH)
-                   if filename.startswith(INPUT_PREFIX)]
+    input_files = [
+        f"{INPUT_PATH}/{filename}" for filename in os.listdir(INPUT_PATH) if filename.startswith(INPUT_PREFIX)
+    ]
     for filename in input_files:
-        next_df = pd.read_csv(filename,
-                              sep=SEPARATOR,
-                              usecols=[WORD_COL_INDEX, FREQUENCY_COL_INDEX],
-                              index_col=0,
-                              header=None)
+        logging.info("Reading file: %s", filename)
+        next_df = pd.read_csv(
+            filename,
+            sep=SEPARATOR,
+            usecols=[WORD_COL_INDEX, FREQUENCY_COL_INDEX],
+            header=None,
+        )
         df = pd.concat([df, next_df])
 
-    # Aggregating the frequencies by word
-    df = df.groupby(df.index).sum()
+    df.columns = [WORD_COL_TITLE, FREQUENCY_COL_TITLE]
+
+    logging.info("Consolidating data by summing frequencies of duplicate words...")
+    df = df.groupby(WORD_COL_TITLE, as_index=False).agg({FREQUENCY_COL_TITLE: "sum"})
 
     return df
 
@@ -45,56 +54,64 @@ def get_data() -> pd.DataFrame:
 def process_words(df: pd.DataFrame) -> pd.DataFrame:
     """Processes the given dataframe and returns the processed dataframe."""
 
-    # Initially remove words with non-alphabetic characters
-    # This might leave out some words containing invisible character.
-    df = df[df.index.str.isalpha()]
+    logging.info("Removing words with non-alphabetic characters...")
+    # FIXME: Fails to filter out words with invisible unicode characters.
+    df = df[df[WORD_COL_TITLE].str.isalpha()]
 
-    # Lowercase the words
-    df.index = df.index.str.lower()
+    logging.info("Converting words to lowercase...")
+    df[WORD_COL_TITLE] = df[WORD_COL_TITLE].str.lower()
 
-    # Lemmatization
-    # TODO: Filter out proper nouns (people, places, etc.)
+    total_batches = (len(df) + LEMMA_BATCH_SIZE - 1) // LEMMA_BATCH_SIZE
+    next_log_pct = 1
+    logging.info("Lemmatizing words using spaCy; total words: %d; total batched: %d", len(df), total_batches)
     lemmas = []
-    for doc in tqdm(nlp.pipe(df.index, batch_size=LEMMA_BATCH_SIZE),
-                    total=len(df),
-                    desc="Lemmatizing words"):
-        lemmas.append(doc[0].lemma_)
+    for batch_start in range(0, len(df), LEMMA_BATCH_SIZE):
+        batch = df[WORD_COL_TITLE][batch_start : batch_start + LEMMA_BATCH_SIZE]
+        for doc in nlp.pipe(batch, batch_size=LEMMA_BATCH_SIZE):
+            # TODO: Filter out proper nouns (people, places, etc.)
+            lemmas.append(doc[0].lemma_)
 
-    # Create the output DataFrame with given output col titles
-    processed_df = pd.DataFrame({
-        LEMMA_COL_TITLE: lemmas,
-        FREQUENCY_COL_TITLE: df[df.columns[0]].values
-    })
+        batch_num = batch_start // LEMMA_BATCH_SIZE + 1
+        pct_complete = batch_num / total_batches * 100
+        if pct_complete >= next_log_pct:
+            logging.info("Processed batch %d/%d (%.2f%% complete)", batch_num, total_batches, pct_complete)
+            next_log_pct += 1
+    df[LEMMA_COL_TITLE] = lemmas
+    logging.info("Lemmatization completed.")
 
-    # Aggregate the frequencies by lemma and sort
-    processed_df = processed_df.groupby(
-        LEMMA_COL_TITLE, as_index=False
-    ).sum()
-    processed_df = processed_df.sort_values(
-        by=FREQUENCY_COL_TITLE, ascending=False)
-
-    # Once again remove words with non-alphabetic characters
-    # By now, lemmatization will have already transformed the non-alphabetic
-    # characters into '-' or removed them.
-    # processed_df = processed_df[processed_df.index.str.isalpha()]
-
-    return processed_df
+    return df
 
 
-print("Loading the spaCy model for lemmatization...")
+logging.info("Starting the dictionary generation process...")
+
+logging.info("Loading spaCy model: %s", SPACY_MODEL)
 nlp = spacy.load(SPACY_MODEL)
 
-print("Reading the raw data files...")
+logging.info("Reading and consolidating input data files...")
 freq_df = get_data()
 
-# Limit to the first 20000 words for testing
-freq_df = freq_df.head(40000)
+# NOTE: Use this for testing purposes:
+# # Shrink the dataset for testing
+# MAX_ROWS = 100000
+# logging.info("Shrinking the dataset to the top %d rows for testing purposes...", MAX_ROWS)
+# freq_df = freq_df.head(MAX_ROWS)
 
-print("Processing the words in the DataFrame...")
+logging.info("Processing words (lowercasing and lemmatization)...")
 freq_df = process_words(freq_df)
 
-print("Saving the processed DataFrame to a file...")
-freq_df.to_csv(OUTPUT_FILE, index=False,
-               header=[LEMMA_COL_TITLE, FREQUENCY_COL_TITLE]
-               )
-print("Done!")
+logging.info("Aggregating frequencies by lemma...")
+freq_df = freq_df.groupby(LEMMA_COL_TITLE, as_index=False).agg({FREQUENCY_COL_TITLE: "sum", WORD_COL_TITLE: "first"})
+
+logging.info("Calculating ranks based on frequency...")
+freq_df[RANK_COL_TITLE] = freq_df[FREQUENCY_COL_TITLE].rank(method="min", ascending=False).astype(int)
+
+logging.info("Sorting the DataFrame by frequency in descending order...")
+freq_df = freq_df.sort_values(by=FREQUENCY_COL_TITLE, ascending=False)
+
+logging.info("Saving the dictionary to file: %s", OUTPUT_FILE)
+freq_df[[WORD_COL_TITLE, FREQUENCY_COL_TITLE, LEMMA_COL_TITLE, RANK_COL_TITLE]].to_csv(
+    OUTPUT_FILE,
+    index=False,
+)
+
+logging.info("Dictionary generation process completed successfully.")

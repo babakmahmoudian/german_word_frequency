@@ -44,4 +44,4 @@ anki_df = anki_df.sort_values(by=FREQUENCY_COL_TITLE, ascending=False, na_positi
 
 print("Saving the Anki words with their frequencies to a file...")
 anki_df.to_csv(OUTPUT_ANKI, header=[LEMMA_COL_TITLE, FREQUENCY_COL_TITLE])
-print("Done!")
+print("Anki frequencies saved to:", OUTPUT_ANKI)
