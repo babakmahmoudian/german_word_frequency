@@ -54,8 +54,11 @@ anki_df = anki_df.merge(frequency_df, left_on=LEMMA_COL_TITLE, right_on=LEMMA_CO
 anki_df[FREQUENCY_COL_TITLE] = anki_df[FREQUENCY_COL_TITLE].fillna(0).astype(int)
 anki_df[RANK_COL_TITLE] = anki_df[RANK_COL_TITLE].fillna(0).astype(int)
 
-logging.info("Sorting the Anki words by frequency")
-anki_df = anki_df.sort_values(by=FREQUENCY_COL_TITLE, ascending=False, na_position="last")
+logging.info("Removing duplicate instances based on the %s column.", WORD_COL_TITLE)
+anki_df = anki_df.drop_duplicates(subset=[WORD_COL_TITLE], keep="first")
+
+logging.info("Sorting the Anki words")
+anki_df = anki_df.sort_values(by=WORD_COL_TITLE, ascending=True)
 
 logging.info("Saving Anki frequencies to: %s", OUTPUT_ANKI)
 anki_df[[WORD_COL_TITLE, LEMMA_COL_TITLE, FREQUENCY_COL_TITLE, RANK_COL_TITLE]].to_csv(OUTPUT_ANKI, index=False)
