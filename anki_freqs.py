@@ -19,6 +19,7 @@ from configs import (
     FREQUENCY_COL,
     WORD_COL,
     RANK_COL,
+    ANKI_NOTETYPE_COL,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -33,6 +34,7 @@ frequency_df = pd.read_csv(
     usecols=[LEMMA_COL, FREQUENCY_COL, RANK_COL],
 )
 
+# NOTE: For this step, Anki should be open with the addon "AnkiConnect" enabled
 logging.info("Fetching note IDs from Anki collection using AnkiConnect API")
 note_ids = requests.post(
     timeout=ANKI_REQUEST_TIMEOUT,
@@ -48,17 +50,34 @@ note_info = requests.post(
     json={"action": "notesInfo", "version": 6, "params": {"notes": note_ids}},
 ).json()["result"]
 
-logging.info("Extracting words from the note information")
+logging.info("Extracting words and notetypes from the note information")
 anki_words = []
+anki_notetypes = []
 for note in note_info:
-    word_field_value = note["fields"][ANKI_WORD_FIELD]["value"]
-    word_field_value = re.sub(r'[^\w\s]', '', word_field_value)
-    anki_words.extend(word_field_value.split())
+    word = note["fields"][ANKI_WORD_FIELD]["value"]
+    notetype = note["modelName"]
+    anki_words.append(word)
+    anki_notetypes.append(notetype)
 
-anki_df = pd.DataFrame(anki_words, columns=[WORD_COL])
+logging.info("Setting up the output dataframe")
+extracted_words = []
+extracted_orig_words = []
+extracted_notetypes = []
+for _, (notetype, whole_word) in enumerate(zip(anki_notetypes, anki_words)):
+    combined_words = re.sub(r"[^\w\s]", "", whole_word)
+    single_words = combined_words.split()
+    for single_word in single_words:
+        if (single_word in anki_words) and (len(single_words) > 1):
+            continue
+        extracted_words.append(single_word)
+        extracted_orig_words.append(whole_word)
+        extracted_notetypes.append(notetype)
+anki_df = pd.DataFrame(
+    {ANKI_NOTETYPE_COL: extracted_notetypes, ANKI_WORD_FIELD: extracted_orig_words, WORD_COL: extracted_words}
+)
 
-logging.info("Loading spaCy model: %s", SPACY_MODEL)
-nlp = spacy.load(SPACY_MODEL)
+logging.info("Converting word to lowercase")
+anki_df[WORD_COL] = anki_df[WORD_COL].str.lower()
 
 logging.info("Stripping leading and trailing whitespace from words")
 anki_df[WORD_COL] = anki_df[WORD_COL].str.strip()
@@ -66,13 +85,17 @@ anki_df[WORD_COL] = anki_df[WORD_COL].str.strip()
 logging.info("Removing duplicate instances")
 anki_df = anki_df.drop_duplicates(subset=[WORD_COL], keep="first")
 
-logging.info("Lemmatizing Anki words")
+logging.info("Loading spaCy model: %s", SPACY_MODEL)
+nlp = spacy.load(SPACY_MODEL)
+
+logging.info("Lemmatizing Anki words...")
 lemmas = []
 for batch_start in range(0, len(anki_df), LEMMA_BATCH_SIZE):
-    batch = anki_df[WORD_COL][batch_start: batch_start + LEMMA_BATCH_SIZE]
+    batch = anki_df[WORD_COL][batch_start : batch_start + LEMMA_BATCH_SIZE]
     for doc in nlp.pipe(batch, batch_size=LEMMA_BATCH_SIZE):
         lemmas.append(doc[0].lemma_.lower())
 anki_df[LEMMA_COL] = lemmas
+logging.info("Finished Lemmatization")
 
 logging.info("Converting lemmas to lowercase")
 anki_df[LEMMA_COL] = anki_df[LEMMA_COL].str.lower()
@@ -91,6 +114,8 @@ logging.info("Sorting the Anki words")
 anki_df = anki_df.sort_values(by=WORD_COL, ascending=True)
 
 logging.info("Saving Anki frequencies to: %s", ANKIFREQ_FILE)
-anki_df[[WORD_COL, LEMMA_COL, FREQUENCY_COL, RANK_COL]].to_csv(ANKIFREQ_FILE, index=False)
+anki_df[[ANKI_NOTETYPE_COL, ANKI_WORD_FIELD, WORD_COL, LEMMA_COL, FREQUENCY_COL, RANK_COL]].to_csv(
+    ANKIFREQ_FILE, index=False
+)
 
 logging.info("Anki frequency generation process completed.")

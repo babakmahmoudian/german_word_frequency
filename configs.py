@@ -11,6 +11,7 @@ POS_COL = "pos"
 FREQUENCY_COL = "frequency"
 RANK_COL = "rank"
 WORD_COL = "word"
+ANKI_NOTETYPE_COL = "notetype"
 
 # List the input files and their full path to be processed
 # NOTE: All raw data files are assumed to follow the same format.
@@ -32,7 +33,5 @@ FREQDICT_FILE = "./output_data/all_frequencies.csv"
 ANKIFREQ_FILE = "./output_data/anki_frequencies.csv"
 
 # Configuration for the final Anki deck output
-MAX_RANK = 10000
-CURRENT_TOPRANK_NOTES_FILE = "./output_data/anki_current_toprank_notes.csv"
-LOWRANK_NOTES_FILE = "./output_data/anki_lowrank_notes.csv"
-MISSING_TOPRANK_NOTES_FILE = "./output_data/anki_missing_toprank_notes.csv"
+MAX_RANK_TO_ADD = 5000
+MIN_RANK_TO_REMOVE = 10000
