@@ -12,6 +12,7 @@ FREQUENCY_COL = "frequency"
 RANK_COL = "rank"
 WORD_COL = "word"
 ANKI_NOTETYPE_COL = "notetype"
+ANKI_FLAG_COL = "is_highfrequency"
 
 # List the input files and their full path to be processed
 # NOTE: All raw data files are assumed to follow the same format.
@@ -31,8 +32,10 @@ ANKI_WORD_FIELD = "Deutsch"
 # NOTE: The output files will be overwritten if it already exists.
 FREQDICT_FILE = "./data/processed/all_frequencies.csv"
 ANKIFREQ_FILE = "./data/processed/anki_frequencies.csv"
-ANKI_TO_KEEP_FILE = "./data/reports/anki_to_keep.csv"
-ANKI_TO_ADD_FILE = "./data/reports/anki_to_add.csv"
+ANKI_REPORT_PATH = "./data/reports"
+ANKI_TO_ADD_FILE_PREFIX = "anki_to_add_"
+ANKI_TO_KEEP_FILE_PREFIX = "anki_to_keep_"
+ANKI_FLAG_VALUE = "Yes"
 
 # Configuration for the final Anki deck output
 MAX_RANK_TO_ADD = 5000

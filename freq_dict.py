@@ -114,9 +114,6 @@ freq_df = freq_df[~freq_df[LEMMA_COL].str.fullmatch(r"-+")]
 logging.info("Converting lemmas to lowercase")
 freq_df[LEMMA_COL] = freq_df[LEMMA_COL].str.lower()
 
-logging.info("Aggregating frequencies by lemma")
-freq_df[FREQUENCY_COL] = freq_df.groupby(LEMMA_COL)[FREQUENCY_COL].transform("sum")
-
 logging.info("Calculating ranks based on frequency")
 freq_df[RANK_COL] = freq_df[FREQUENCY_COL].rank(method="min", ascending=False).astype(int)
 

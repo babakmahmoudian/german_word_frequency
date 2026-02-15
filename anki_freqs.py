@@ -107,11 +107,8 @@ logging.info("Filling missing frequency and rank values with 0")
 anki_df[FREQUENCY_COL] = anki_df[FREQUENCY_COL].fillna(0).astype(int)
 anki_df[RANK_COL] = anki_df[RANK_COL].fillna(0).astype(int)
 
-logging.info("Removing duplicate instances based on the %s column.", WORD_COL)
-anki_df = anki_df.drop_duplicates(subset=[WORD_COL], keep="first")
-
 logging.info("Sorting the Anki words")
-anki_df = anki_df.sort_values(by=WORD_COL, ascending=True)
+anki_df = anki_df.sort_values(by=FREQUENCY_COL, ascending=False)
 
 logging.info("Saving Anki frequencies to: %s", ANKIFREQ_FILE)
 anki_df[[ANKI_NOTETYPE_COL, ANKI_WORD_FIELD, WORD_COL, LEMMA_COL, FREQUENCY_COL, RANK_COL]].to_csv(
