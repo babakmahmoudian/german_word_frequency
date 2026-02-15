@@ -2,65 +2,95 @@
 identifies missing/extra words and the words' frequencies."""
 
 import logging
+import re
+import requests
 import pandas as pd
 import spacy
 from configs import (
-    INPUT_ANKI,
-    ANKI_WORD_COL_INDEX,
-    ANKI_SKIP_ROWS,
-    ANKI_SEPERATOR,
-    OUTPUT_ANKI,
+    ANKI_API_URL,
+    ANKI_QUERY,
+    ANKI_REQUEST_TIMEOUT,
+    ANKI_WORD_FIELD,
+    ANKIFREQ_FILE,
     SPACY_MODEL,
     LEMMA_BATCH_SIZE,
-    OUTPUT_FILE,
-    LEMMA_COL_TITLE,
-    FREQUENCY_COL_TITLE,
-    WORD_COL_TITLE,
-    RANK_COL_TITLE,
+    FREQDICT_FILE,
+    LEMMA_COL,
+    FREQUENCY_COL,
+    WORD_COL,
+    RANK_COL,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 logging.info("Starting Anki frequency generation process.")
 
-logging.info("Reading Anki collection from: %s", INPUT_ANKI)
-anki_df = pd.read_csv(
-    INPUT_ANKI,
-    usecols=[ANKI_WORD_COL_INDEX],
-    sep=ANKI_SEPERATOR,
-    skiprows=ANKI_SKIP_ROWS,
-    header=None,
-    names=[WORD_COL_TITLE],
-    index_col=None,
-)
-
-logging.info("Reading frequency data from: %s", OUTPUT_FILE)
+logging.info("Reading frequency data from: %s", FREQDICT_FILE)
 frequency_df = pd.read_csv(
-    OUTPUT_FILE,
+    FREQDICT_FILE,
     index_col=None,
     header=0,
-    usecols=[LEMMA_COL_TITLE, FREQUENCY_COL_TITLE, RANK_COL_TITLE],
+    usecols=[LEMMA_COL, FREQUENCY_COL, RANK_COL],
 )
+
+logging.info("Fetching note IDs from Anki collection using AnkiConnect API")
+note_ids = requests.post(
+    timeout=ANKI_REQUEST_TIMEOUT,
+    url=ANKI_API_URL,
+    json={"action": "findNotes", "version": 6, "params": {"query": ANKI_QUERY}},
+).json()["result"]
+logging.info("Total of %d notes found in Anki collection.", len(note_ids))
+
+logging.info("Fetching note information for the retrieved note IDs")
+note_info = requests.post(
+    timeout=ANKI_REQUEST_TIMEOUT,
+    url=ANKI_API_URL,
+    json={"action": "notesInfo", "version": 6, "params": {"notes": note_ids}},
+).json()["result"]
+
+logging.info("Extracting words from the note information")
+anki_words = []
+for note in note_info:
+    word_field_value = note["fields"][ANKI_WORD_FIELD]["value"]
+    word_field_value = re.sub(r'[^\w\s]', '', word_field_value)
+    anki_words.extend(word_field_value.split())
+
+anki_df = pd.DataFrame(anki_words, columns=[WORD_COL])
 
 logging.info("Loading spaCy model: %s", SPACY_MODEL)
 nlp = spacy.load(SPACY_MODEL)
 
+logging.info("Stripping leading and trailing whitespace from words")
+anki_df[WORD_COL] = anki_df[WORD_COL].str.strip()
+
+logging.info("Removing duplicate instances")
+anki_df = anki_df.drop_duplicates(subset=[WORD_COL], keep="first")
+
 logging.info("Lemmatizing Anki words")
-anki_df[LEMMA_COL_TITLE] = [doc[-1].lemma_ for doc in nlp.pipe(anki_df[WORD_COL_TITLE], batch_size=LEMMA_BATCH_SIZE)]
+lemmas = []
+for batch_start in range(0, len(anki_df), LEMMA_BATCH_SIZE):
+    batch = anki_df[WORD_COL][batch_start: batch_start + LEMMA_BATCH_SIZE]
+    for doc in nlp.pipe(batch, batch_size=LEMMA_BATCH_SIZE):
+        lemmas.append(doc[0].lemma_.lower())
+anki_df[LEMMA_COL] = lemmas
+
+logging.info("Converting lemmas to lowercase")
+anki_df[LEMMA_COL] = anki_df[LEMMA_COL].str.lower()
 
 logging.info("Merging Anki words with frequency data")
-anki_df = anki_df.merge(frequency_df, left_on=LEMMA_COL_TITLE, right_on=LEMMA_COL_TITLE, how="left")
+anki_df = anki_df.merge(frequency_df, left_on=LEMMA_COL, right_on=LEMMA_COL, how="left")
 
-anki_df[FREQUENCY_COL_TITLE] = anki_df[FREQUENCY_COL_TITLE].fillna(0).astype(int)
-anki_df[RANK_COL_TITLE] = anki_df[RANK_COL_TITLE].fillna(0).astype(int)
+logging.info("Filling missing frequency and rank values with 0")
+anki_df[FREQUENCY_COL] = anki_df[FREQUENCY_COL].fillna(0).astype(int)
+anki_df[RANK_COL] = anki_df[RANK_COL].fillna(0).astype(int)
 
-logging.info("Removing duplicate instances based on the %s column.", WORD_COL_TITLE)
-anki_df = anki_df.drop_duplicates(subset=[WORD_COL_TITLE], keep="first")
+logging.info("Removing duplicate instances based on the %s column.", WORD_COL)
+anki_df = anki_df.drop_duplicates(subset=[WORD_COL], keep="first")
 
 logging.info("Sorting the Anki words")
-anki_df = anki_df.sort_values(by=WORD_COL_TITLE, ascending=True)
+anki_df = anki_df.sort_values(by=WORD_COL, ascending=True)
 
-logging.info("Saving Anki frequencies to: %s", OUTPUT_ANKI)
-anki_df[[WORD_COL_TITLE, LEMMA_COL_TITLE, FREQUENCY_COL_TITLE, RANK_COL_TITLE]].to_csv(OUTPUT_ANKI, index=False)
+logging.info("Saving Anki frequencies to: %s", ANKIFREQ_FILE)
+anki_df[[WORD_COL, LEMMA_COL, FREQUENCY_COL, RANK_COL]].to_csv(ANKIFREQ_FILE, index=False)
 
 logging.info("Anki frequency generation process completed.")

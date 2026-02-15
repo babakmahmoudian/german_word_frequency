@@ -9,19 +9,19 @@ import spacy
 import pandas as pd
 from configs import (
     LEMMA_BATCH_SIZE,
-    MORPH_COL_TITLE,
-    POS_COL_TITLE,
+    MORPH_COL,
+    POS_COL,
     SPACY_MODEL,
     INPUT_PATH,
     WORD_COL_INDEX,
     FREQUENCY_COL_INDEX,
     SEPARATOR,
     INPUT_PREFIX,
-    WORD_COL_TITLE,
-    FREQUENCY_COL_TITLE,
-    LEMMA_COL_TITLE,
-    RANK_COL_TITLE,
-    OUTPUT_FILE,
+    WORD_COL,
+    FREQUENCY_COL,
+    LEMMA_COL,
+    RANK_COL,
+    FREQDICT_FILE,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -45,19 +45,19 @@ def get_data() -> pd.DataFrame:
         )
         df = pd.concat([df, next_df])
 
-    df.columns = [WORD_COL_TITLE, FREQUENCY_COL_TITLE]
+    df.columns = [WORD_COL, FREQUENCY_COL]
 
     logging.info("Eliminating the words with non-alphabetic characters")
-    df = df[df[WORD_COL_TITLE].str.isalpha()]
+    df = df[df[WORD_COL].str.isalpha()]
     
     logging.info("Stripping leading and trailing whitespace from words")
-    df[WORD_COL_TITLE] = df[WORD_COL_TITLE].str.strip()
+    df[WORD_COL] = df[WORD_COL].str.strip()
 
-    logging.info("Converting words to lowercase...")
-    df[WORD_COL_TITLE] = df[WORD_COL_TITLE].str.lower()
+    logging.info("Converting words to lowercase")
+    df[WORD_COL] = df[WORD_COL].str.lower()
 
-    logging.info("Consolidating data by summing frequencies of duplicate words")
-    df = df.groupby(WORD_COL_TITLE, as_index=False).agg({FREQUENCY_COL_TITLE: "sum"})
+    logging.info("Summing frequencies of duplicate words")
+    df = df.groupby(WORD_COL, as_index=False).agg({FREQUENCY_COL: "sum"})
 
     return df
 
@@ -67,12 +67,12 @@ def process_words(df: pd.DataFrame) -> pd.DataFrame:
 
     total_batches = (len(df) + LEMMA_BATCH_SIZE - 1) // LEMMA_BATCH_SIZE
     next_log_pct = 1
-    logging.info("Lemmatizing words using spaCy; total words: %d; total batched: %d", len(df), total_batches)
+    logging.info("Starting lemmatization process; total words: %d; total batched: %d", len(df), total_batches)
     lemmas = []
     morphs = []
     poses = []
     for batch_start in range(0, len(df), LEMMA_BATCH_SIZE):
-        batch = df[WORD_COL_TITLE][batch_start : batch_start + LEMMA_BATCH_SIZE]
+        batch = df[WORD_COL][batch_start : batch_start + LEMMA_BATCH_SIZE]
         for doc in nlp.pipe(batch, batch_size=LEMMA_BATCH_SIZE):
             lemmas.append(doc[0].lemma_.lower())
             morphs.append(doc[0].morph)
@@ -83,15 +83,15 @@ def process_words(df: pd.DataFrame) -> pd.DataFrame:
         if pct_complete >= next_log_pct:
             logging.info("Processed batch %d/%d (%.2f%% complete)", batch_num, total_batches, pct_complete)
             next_log_pct += 1
-    df[LEMMA_COL_TITLE] = lemmas
-    df[MORPH_COL_TITLE] = morphs
-    df[POS_COL_TITLE] = poses
+    df[LEMMA_COL] = lemmas
+    df[MORPH_COL] = morphs
+    df[POS_COL] = poses
     logging.info("Lemmatization completed.")
 
     return df
 
 
-logging.info("Starting the dictionary generation process...")
+logging.info("Starting the dictionary generation process")
 
 logging.info("Loading spaCy model: %s", SPACY_MODEL)
 nlp = spacy.load(SPACY_MODEL)
@@ -105,24 +105,27 @@ freq_df = get_data()
 # logging.info("Shrinking the dataset to the top %d rows for testing purposes", MAX_ROWS)
 # freq_df = freq_df.sample(MAX_ROWS)
 
-logging.info("Processing words (lowercasing and lemmatization)...")
+logging.info("Lemmatizing words and extracting morphological features...")
 freq_df = process_words(freq_df)
 
 logging.info("Removing invalid lemmas")
-freq_df = freq_df[~freq_df[LEMMA_COL_TITLE].str.fullmatch(r"-+")]
+freq_df = freq_df[~freq_df[LEMMA_COL].str.fullmatch(r"-+")]
 
-logging.info("Aggregating frequencies by lemma...")
-freq_df[FREQUENCY_COL_TITLE] = freq_df.groupby(LEMMA_COL_TITLE)[FREQUENCY_COL_TITLE].transform("sum")
+logging.info("Converting lemmas to lowercase")
+freq_df[LEMMA_COL] = freq_df[LEMMA_COL].str.lower()
 
-logging.info("Calculating ranks based on frequency...")
-freq_df[RANK_COL_TITLE] = freq_df[FREQUENCY_COL_TITLE].rank(method="min", ascending=False).astype(int)
+logging.info("Aggregating frequencies by lemma")
+freq_df[FREQUENCY_COL] = freq_df.groupby(LEMMA_COL)[FREQUENCY_COL].transform("sum")
+
+logging.info("Calculating ranks based on frequency")
+freq_df[RANK_COL] = freq_df[FREQUENCY_COL].rank(method="min", ascending=False).astype(int)
 
 logging.info("Sorting the DataFrame by frequency in descending order")
-freq_df = freq_df.sort_values(by=FREQUENCY_COL_TITLE, ascending=False)
+freq_df = freq_df.sort_values(by=FREQUENCY_COL, ascending=False)
 
-logging.info("Saving the dictionary to file: %s", OUTPUT_FILE)
-freq_df[[WORD_COL_TITLE, FREQUENCY_COL_TITLE, LEMMA_COL_TITLE, MORPH_COL_TITLE, POS_COL_TITLE, RANK_COL_TITLE]].to_csv(
-    OUTPUT_FILE,
+logging.info("Saving the dictionary to file: %s", FREQDICT_FILE)
+freq_df[[WORD_COL, FREQUENCY_COL, LEMMA_COL, MORPH_COL, POS_COL, RANK_COL]].to_csv(
+    FREQDICT_FILE,
     index=False,
 )
 

@@ -1,14 +1,16 @@
 """Configuration settings for the word frequency processing script."""
 
+# Internal settings for the processing script
 LEMMA_BATCH_SIZE = 1000
 SPACY_MODEL = "de_core_news_lg"
 
-LEMMA_COL_TITLE = "lemma"
-MORPH_COL_TITLE = "morph"
-POS_COL_TITLE = "pos"
-FREQUENCY_COL_TITLE = "frequency"
-RANK_COL_TITLE = "rank"
-WORD_COL_TITLE = "word"
+# Column names used throughout the code and in output files
+LEMMA_COL = "lemma"
+MORPH_COL = "morph"
+POS_COL = "pos"
+FREQUENCY_COL = "frequency"
+RANK_COL = "rank"
+WORD_COL = "word"
 
 # List the input files and their full path to be processed
 # NOTE: All raw data files are assumed to follow the same format.
@@ -19,13 +21,18 @@ FREQUENCY_COL_INDEX = 2
 SEPARATOR = "\t"
 
 # Configuration for processing the Anki collection
-INPUT_ANKI = "./input_data/anki_words.tsv"
-ANKI_SEPERATOR = "\t"
-ANKI_SKIP_ROWS = 2
-ANKI_WORD_COL_INDEX = 0
+ANKI_REQUEST_TIMEOUT = 10
+ANKI_API_URL = "http://127.0.0.1:8765"
+ANKI_QUERY = "deck:My-German -note:MY-German-Paradigm"
+ANKI_WORD_FIELD = "Deutsch"
 
 # Specify the output file path for the processed word-frequency dictionary
 # NOTE: The output files will be overwritten if it already exists.
-OUTPUT_FILE = "./output_data/all_frequencies.csv"
-OUTPUT_ANKI = "./output_data/anki_frequencies.csv"
-OUTPUT_ANKI_SUMMARY = "./output_data/anki_summary_report.txt"
+FREQDICT_FILE = "./output_data/all_frequencies.csv"
+ANKIFREQ_FILE = "./output_data/anki_frequencies.csv"
+
+# Configuration for the final Anki deck output
+MAX_RANK = 10000
+CURRENT_TOPRANK_NOTES_FILE = "./output_data/anki_current_toprank_notes.csv"
+LOWRANK_NOTES_FILE = "./output_data/anki_lowrank_notes.csv"
+MISSING_TOPRANK_NOTES_FILE = "./output_data/anki_missing_toprank_notes.csv"
