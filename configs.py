@@ -33,8 +33,7 @@ FREQDICT_FILE = "./data/processed/all_frequencies.csv"
 ANKIFREQ_FILE = "./data/processed/anki_frequencies.csv"
 ANKI_TO_KEEP_FILE = "./data/reports/anki_to_keep.csv"
 ANKI_TO_ADD_FILE = "./data/reports/anki_to_add.csv"
-ANKI_TO_REMOVE_FILE = "./data/reports/anki_to_remove.csv"
 
 # Configuration for the final Anki deck output
 MAX_RANK_TO_ADD = 5000
-MIN_RANK_TO_REMOVE = 10000
+MAX_RANK_TO_KEEP = 10000
