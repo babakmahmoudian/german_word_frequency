@@ -15,7 +15,7 @@ ANKI_NOTETYPE_COL = "notetype"
 
 # List the input files and their full path to be processed
 # NOTE: All raw data files are assumed to follow the same format.
-INPUT_PATH = "./input_data"
+INPUT_PATH = "./input"
 INPUT_PREFIX = "row_words_"
 WORD_COL_INDEX = 1
 FREQUENCY_COL_INDEX = 2
@@ -29,8 +29,8 @@ ANKI_WORD_FIELD = "Deutsch"
 
 # Specify the output file path for the processed word-frequency dictionary
 # NOTE: The output files will be overwritten if it already exists.
-FREQDICT_FILE = "./output_data/all_frequencies.csv"
-ANKIFREQ_FILE = "./output_data/anki_frequencies.csv"
+FREQDICT_FILE = "./output/all_frequencies.csv"
+ANKIFREQ_FILE = "./output/anki_frequencies.csv"
 
 # Configuration for the final Anki deck output
 MAX_RANK_TO_ADD = 5000
