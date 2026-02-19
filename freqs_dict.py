@@ -4,8 +4,8 @@ the word-frequency dict.
 """
 
 from collections import Counter
-import csv
 from typing import Tuple
+import csv
 import spacy
 from tqdm import tqdm
 
